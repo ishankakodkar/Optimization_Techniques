@@ -1,44 +1,47 @@
 import numpy as np
-from typing import Optional
-import scipy.linalg
+from scipy.optimize import minimize
 
-class QuadraticProgramming:
-    """
-    Simple active-set solver for convex quadratic programming problems:
-    min 1/2 x^T Q x + c^T x s.t. Ax <= b
-    """
-    def __init__(self, tol: float = 1e-6, max_iter: int = 100):
-        self.tol = tol
-        self.max_iter = max_iter
-        self.history = {
-            'x': [],
-            'obj': [],
-        }
+# Example: Solve a simple Quadratic Program
+# Minimize f(x) = 2*x1^2 + x2^2 + x1*x2 + x1 + x2
+# Subject to:
+# 1. x1 >= 0
+# 2. x2 >= 0
+# 3. x1 + x2 = 1
 
-    def solve(self, Q: np.ndarray, c: np.ndarray, A: Optional[np.ndarray], b: Optional[np.ndarray], x0: Optional[np.ndarray] = None) -> dict:
-        n = Q.shape[0]
-        if x0 is None:
-            x = np.zeros(n)
-        else:
-            x = np.array(x0, dtype=float)
-        # For demonstration: projected gradient descent for QP
-        for k in range(self.max_iter):
-            grad = Q @ x + c
-            x_new = x - 0.01 * grad
-            if A is not None and b is not None:
-                # Project onto feasible set (Ax <= b)
-                for i in range(A.shape[0]):
-                    if A[i] @ x_new > b[i]:
-                        x_new -= (A[i] @ x_new - b[i]) / (np.linalg.norm(A[i]) ** 2) * A[i]
-            obj = 0.5 * x_new @ Q @ x_new + c @ x_new
-            self.history['x'].append(x_new.copy())
-            self.history['obj'].append(obj)
-            if np.linalg.norm(x_new - x) < self.tol:
-                break
-            x = x_new
-        return {
-            'solution': x,
-            'objective': 0.5 * x @ Q @ x + c @ x,
-            'iterations': len(self.history['x']),
-            'history': self.history
-        }
+# The objective function in matrix form: 1/2 * x.T * Q * x + c.T * x
+# f(x) = 1/2 * [x1, x2] * [[4, 1], [1, 2]] * [x1, x2] + [1, 1] * [x1, x2]
+Q = np.array([[4., 1.], [1., 2.]])
+c = np.array([1., 1.])
+
+def objective_function(x, Q, c):
+    """The quadratic objective function to be minimized."""
+    return 0.5 * x.T @ Q @ x + c.T @ x
+
+# Define the constraints
+# Equality constraint: x1 + x2 - 1 = 0
+cons = ({'type': 'eq', 'fun': lambda x: np.array([x[0] + x[1] - 1])})
+
+# Bounds for each variable (x1 >= 0, x2 >= 0)
+bounds = ((0, None), (0, None))
+
+# Initial guess
+x0 = np.array([0.5, 0.5])
+
+# Solve the Quadratic Program
+result = minimize(
+    fun=objective_function,
+    x0=x0,
+    args=(Q, c),
+    method='SLSQP',  # Sequential Least Squares Programming is suitable for QPs
+    bounds=bounds,
+    constraints=cons
+)
+
+# Print the results
+if result.success:
+    print("Quadratic Program solved successfully!")
+    print(f"Optimal solution (x1, x2): {result.x}")
+    print(f"Minimum objective value: {result.fun:.4f}")
+else:
+    print("Quadratic Program failed to solve.")
+    print(f"Status: {result.message}")

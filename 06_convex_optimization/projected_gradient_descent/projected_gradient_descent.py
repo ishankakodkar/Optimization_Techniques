@@ -19,18 +19,31 @@ class ProjectedGradientDescent:
 
     def minimize(self, objective: Callable, gradient: Callable, projection: Callable, initial_point: np.ndarray) -> dict:
         x = np.array(initial_point, dtype=float)
+
         for k in range(self.max_iterations):
+            x_prev = x.copy()
             grad = gradient(x)
-            norm_grad = np.linalg.norm(grad)
+
+            # Perform the gradient and projection step
+            x = projection(x - self.step_size * grad)
+
+            # Record history for analysis
             f_x = objective(x)
             self.history['x'].append(x.copy())
             self.history['f_x'].append(f_x)
-            self.history['grad_norm'].append(norm_grad)
+            # Note: grad_norm is of the previous point, but useful for monitoring
+            self.history['grad_norm'].append(np.linalg.norm(grad))
+
+            # Check for convergence
+            change = np.linalg.norm(x - x_prev)
             if self.verbose and k % 100 == 0:
-                print(f"Iter {k}: f(x)={f_x:.6f}, ||grad||={norm_grad:.4e}")
-            if norm_grad < self.tolerance:
+                print(f"Iter {k}: f(x)={f_x:.6f}, ||x_k+1 - x_k||={change:.4e}")
+
+            if change < self.tolerance:
+                if self.verbose:
+                    print(f"\nConvergence achieved after {k+1} iterations.")
                 break
-            x = projection(x - self.step_size * grad)
+
         return {
             'solution': x,
             'function_value': objective(x),

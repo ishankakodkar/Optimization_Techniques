@@ -1,41 +1,38 @@
 import numpy as np
-from typing import Optional
+from scipy.optimize import linprog
 
-class SimplexLinearProgramming:
-    """
-    Simplex method for linear programming: min c^T x s.t. Ax <= b, x >= 0
-    (Educational, not production-grade)
-    """
-    def __init__(self, tol: float = 1e-8, max_iter: int = 100):
-        self.tol = tol
-        self.max_iter = max_iter
-        self.history = {
-            'x': [],
-            'obj': [],
-        }
+# Example: Solve a simple production problem
+# Maximize profit P = 3x + 5y
+# Subject to:
+# 1. x <= 4 (Material A constraint)
+# 2. 2y <= 12 (Material B constraint)
+# 3. 3x + 2y <= 18 (Labor constraint)
+# 4. x >= 0, y >= 0
 
-    def solve(self, c: np.ndarray, A: np.ndarray, b: np.ndarray) -> dict:
-        # Convert to standard form: min c^T x, Ax <= b, x >= 0
-        # For demonstration, use a naive iterative improvement
-        m, n = A.shape
-        x = np.zeros(n)
-        for k in range(self.max_iter):
-            # Find feasible direction
-            grad = c
-            x_new = x - 0.01 * grad
-            x_new = np.maximum(x_new, 0)
-            for i in range(m):
-                if A[i] @ x_new > b[i]:
-                    x_new -= (A[i] @ x_new - b[i]) / (np.linalg.norm(A[i]) ** 2) * A[i]
-            obj = c @ x_new
-            self.history['x'].append(x_new.copy())
-            self.history['obj'].append(obj)
-            if np.linalg.norm(x_new - x) < self.tol:
-                break
-            x = x_new
-        return {
-            'solution': x,
-            'objective': c @ x,
-            'iterations': len(self.history['x']),
-            'history': self.history
-        }
+# The `linprog` function minimizes, so we minimize -P = -3x - 5y
+c = [-3, -5]
+
+# Constraints are in the form A_ub @ x <= b_ub
+A_ub = [
+    [1, 0],  # x <= 4
+    [0, 2],  # 2y <= 12
+    [3, 2]   # 3x + 2y <= 18
+]
+b_ub = [4, 12, 18]
+
+# Bounds for x and y (x >= 0, y >= 0)
+x_bounds = (0, None)
+y_bounds = (0, None)
+
+# Solve the linear program
+result = linprog(c, A_ub=A_ub, b_ub=b_ub, bounds=[x_bounds, y_bounds], method='highs')
+
+# Print the results
+if result.success:
+    print("Linear Program solved successfully!")
+    print(f"Optimal solution (x, y): {result.x}")
+    # The objective function value is the minimum of -P, so max P is -result.fun
+    print(f"Maximum profit: {-result.fun:.2f}")
+else:
+    print("Linear Program failed to solve.")
+    print(f"Status: {result.message}")

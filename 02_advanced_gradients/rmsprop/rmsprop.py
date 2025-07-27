@@ -49,16 +49,23 @@ class RMSpropOptimizer:
             self.history['x'].append(x.copy())
             self.history['f_x'].append(f_x)
             self.history['gradient_norm'].append(grad_norm)
-            step_size = self.learning_rate / (np.sqrt(Eg2 + grad ** 2) + self.epsilon)
-            self.history['step_size'].append(np.mean(step_size))
             if self.verbose and iteration % 100 == 0:
                 print(f"Iter {iteration:4d}: f(x) = {f_x:.6f}, ||∇f|| = {grad_norm:.6f}")
+
             if grad_norm < self.tolerance:
                 if self.verbose:
                     print(f"Converged after {iteration} iterations")
                 break
+
+            # Calculate adaptive learning rate using the moving average from the previous step
+            adaptive_lr = self.learning_rate / (np.sqrt(Eg2) + self.epsilon)
+            self.history['step_size'].append(np.mean(adaptive_lr))
+
+            # Update parameters
+            x = x - adaptive_lr * grad
+
+            # Update the moving average of squared gradients for the next iteration
             Eg2 = self.decay_rate * Eg2 + (1 - self.decay_rate) * (grad ** 2)
-            x = x - self.learning_rate / (np.sqrt(Eg2) + self.epsilon) * grad
         end_time = time.time()
         final_f = objective(x)
         final_grad = gradient(x) if gradient else self.numerical_gradient(objective, x)

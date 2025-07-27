@@ -1,5 +1,6 @@
 import numpy as np
 from typing import Callable, List
+from scipy.optimize import minimize as scipy_minimize
 
 class PenaltyMethod:
     """
@@ -31,12 +32,16 @@ class PenaltyMethod:
                 grad_penalty = sum(np.maximum(0, c(x_inner)) * gc(x_inner) for c, gc in zip(constraints, grad_constraints))
                 return grad_objective(x_inner) + rho * grad_penalty
 
-            # Inner loop: Unconstrained minimization (using simple Gradient Descent)
-            for inner_iter in range(self.max_inner_iter):
-                grad = grad_penalized_obj(x)
-                if np.linalg.norm(grad) < self.tol:
-                    break
-                x = x - 0.01 * grad # Simple fixed step size
+            # Inner loop: Unconstrained minimization using a robust solver
+            res = scipy_minimize(
+                fun=penalized_obj,
+                x0=x,
+                jac=grad_penalized_obj,
+                method='BFGS',
+                tol=self.tol,
+                options={'maxiter': self.max_inner_iter}
+            )
+            x = res.x
             
             self.history['x'].append(x.copy())
             self.history['f_x'].append(objective(x))

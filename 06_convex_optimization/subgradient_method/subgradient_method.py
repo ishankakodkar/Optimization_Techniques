@@ -19,19 +19,29 @@ class SubgradientMethod:
 
     def minimize(self, objective: Callable, subgradient: Callable, initial_point: np.ndarray) -> dict:
         x = np.array(initial_point, dtype=float)
+        x_best = x.copy()
+        f_best = objective(x)
+
         for k in range(self.max_iterations):
             g = subgradient(x)
-            norm_g = np.linalg.norm(g)
+            alpha_k = self.step_size / np.sqrt(k + 1)  # Diminishing step size
+            x = x - alpha_k * g
+
             f_x = objective(x)
+            if f_x < f_best:
+                f_best = f_x
+                x_best = x.copy()
+
+            # Record history for analysis
             self.history['x'].append(x.copy())
             self.history['f_x'].append(f_x)
-            self.history['subgrad_norm'].append(norm_g)
+            self.history['subgrad_norm'].append(np.linalg.norm(g))
+
             if self.verbose and k % 100 == 0:
-                print(f"Iter {k}: f(x)={f_x:.6f}, ||g||={norm_g:.4e}")
-            if norm_g < self.tolerance:
-                break
-            alpha_k = self.step_size / np.sqrt(k + 1)
-            x = x - alpha_k * g
+                print(f"Iter {k}: f_current={f_x:.6f}, f_best={f_best:.6f}, ||g||={np.linalg.norm(g):.4e}")
+
+        if self.verbose:
+            print(f"\nFinished after {self.max_iterations} iterations.")
         return {
             'solution': x,
             'function_value': objective(x),

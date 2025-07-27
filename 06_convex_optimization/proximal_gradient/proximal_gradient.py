@@ -17,20 +17,32 @@ class ProximalGradientMethod:
             'grad_norm': [],
         }
 
-    def minimize(self, g: Callable, grad_g: Callable, prox_h: Callable, initial_point: np.ndarray) -> dict:
+    def minimize(self, g: Callable, grad_g: Callable, h: Callable, prox_h: Callable, initial_point: np.ndarray) -> dict:
         x = np.array(initial_point, dtype=float)
+
         for k in range(self.max_iterations):
+            x_prev = x.copy()
             grad = grad_g(x)
-            norm_grad = np.linalg.norm(grad)
-            f_x = g(x) + prox_h(x, 0)  # prox_h(x, 0) = h(x)
+
+            # Perform the proximal gradient step
+            x = prox_h(x - self.step_size * grad, self.step_size)
+
+            # Record history for analysis
+            f_x = g(x) + h(x)
             self.history['x'].append(x.copy())
             self.history['f_x'].append(f_x)
-            self.history['grad_norm'].append(norm_grad)
+            self.history['grad_norm'].append(np.linalg.norm(grad))
+
+            # Check for convergence
+            change = np.linalg.norm(x - x_prev)
             if self.verbose and k % 100 == 0:
-                print(f"Iter {k}: f(x)={f_x:.6f}, ||grad||={norm_grad:.4e}")
-            if norm_grad < self.tolerance:
+                print(f"Iter {k}: f(x)={f_x:.6f}, ||x_k+1 - x_k||={change:.4e}")
+
+            if change < self.tolerance:
+                if self.verbose:
+                    print(f"\nConvergence achieved after {k+1} iterations.")
                 break
-            x = prox_h(x - self.step_size * grad, self.step_size)
+
         return {
             'solution': x,
             'function_value': g(x) + prox_h(x, 0),

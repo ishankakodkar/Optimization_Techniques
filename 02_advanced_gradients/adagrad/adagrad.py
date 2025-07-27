@@ -48,16 +48,22 @@ class AdaGradOptimizer:
             self.history['x'].append(x.copy())
             self.history['f_x'].append(f_x)
             self.history['gradient_norm'].append(grad_norm)
-            step_size = self.learning_rate / (np.sqrt(grad_squared + grad ** 2) + self.epsilon)
-            self.history['step_size'].append(np.mean(step_size))
             if self.verbose and iteration % 100 == 0:
                 print(f"Iter {iteration:4d}: f(x) = {f_x:.6f}, ||∇f|| = {grad_norm:.6f}")
+
             if grad_norm < self.tolerance:
                 if self.verbose:
                     print(f"Converged after {iteration} iterations")
                 break
+
+            # Update parameters using the sum of squared gradients from previous iterations
+            adaptive_lr = self.learning_rate / (np.sqrt(grad_squared) + self.epsilon)
+            x = x - adaptive_lr * grad
+
+            # Accumulate the square of the current gradient for the next iteration
             grad_squared += grad ** 2
-            x = x - self.learning_rate / (np.sqrt(grad_squared) + self.epsilon) * grad
+
+            self.history['step_size'].append(np.mean(adaptive_lr))
         end_time = time.time()
         final_f = objective(x)
         final_grad = gradient(x) if gradient else self.numerical_gradient(objective, x)

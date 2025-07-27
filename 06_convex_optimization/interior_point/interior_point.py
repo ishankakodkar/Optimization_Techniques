@@ -1,15 +1,17 @@
 import numpy as np
-from typing import Callable, Optional
+from typing import Callable
+from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 
 class BarrierInteriorPoint:
     """
     Barrier (log-barrier) interior point method for convex inequality-constrained problems.
+    min f(x) s.t. g_i(x) <= 0
     """
     def __init__(self, mu: float = 10.0, t_init: float = 1.0, tol: float = 1e-6, max_iter: int = 50, verbose: bool = False):
-        self.mu = mu  # barrier parameter increase factor
+        self.mu = mu  # Barrier parameter increase factor
         self.t_init = t_init
-        self.tol = tol
+        self.tol = tol  # Tolerance for the duality gap m/t
         self.max_iter = max_iter
         self.verbose = verbose
         self.history = {
@@ -19,41 +21,42 @@ class BarrierInteriorPoint:
         }
 
     def minimize(self, f: Callable, grad_f: Callable, constraints: list, grad_constraints: list, x0: np.ndarray) -> dict:
-        # constraints: list of functions g_i(x) < 0
-        # grad_constraints: list of gradients for g_i
         x = np.array(x0, dtype=float)
         t = self.t_init
+        m = len(constraints)
+
         for outer in range(self.max_iter):
-            def phi(x):
-                penalty = 0.0
-                for g in constraints:
-                    val = g(x)
-                    if val >= 0:
-                        return np.inf
-                    penalty += -np.log(-val)
-                return t * f(x) + penalty
-            def grad_phi(x):
-                grad = t * grad_f(x)
-                for g, grad_g in zip(constraints, grad_constraints):
-                    val = g(x)
-                    if val >= 0:
-                        return np.full_like(x, np.nan)
-                    grad += -1.0 / val * grad_g(x)
-                return grad
-            # Use gradient descent as inner solver for simplicity
-            for _ in range(100):
-                grad = grad_phi(x)
-                if np.any(np.isnan(grad)) or np.linalg.norm(grad) < self.tol:
-                    break
-                x = x - 0.01 * grad  # fixed step size for demo
+            # Define the barrier objective and its gradient for the current t
+            def barrier_objective(x_inner):
+                penalty = sum(-np.log(-g(x_inner)) for g in constraints)
+                return t * f(x_inner) + penalty
+
+            def barrier_gradient(x_inner):
+                grad_penalty = sum(-1.0 / g(x_inner) * grad_g(x_inner) for g, grad_g in zip(constraints, grad_constraints))
+                return t * grad_f(x_inner) + grad_penalty
+
+            # Use a robust solver for the inner unconstrained problem (centering step)
+            inner_result = minimize(
+                fun=barrier_objective,
+                x0=x,
+                jac=barrier_gradient,
+                method='BFGS',
+                tol=1e-5 # Inner problem doesn't need to be solved to high accuracy
+            )
+            x = inner_result.x
+
             self.history['x'].append(x.copy())
             self.history['f_x'].append(f(x))
             self.history['t'].append(t)
+
             if self.verbose:
-                print(f"Outer iter {outer}: t={t:.2e}, f(x)={f(x):.6f}")
-            if len(constraints) == 0 or all(g(x) < -self.tol for g in constraints):
-                if 1.0 / t < self.tol:
-                    break
+                print(f"Outer iter {outer}: t={t:.2e}, f(x)={f(x):.6f}, duality_gap_approx={m/t:.2e}")
+
+            # Check for convergence based on the duality gap
+            if m / t < self.tol:
+                break
+
+            # Increase the barrier parameter t
             t *= self.mu
         return {
             'solution': x,

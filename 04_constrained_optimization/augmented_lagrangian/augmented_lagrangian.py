@@ -1,5 +1,6 @@
 import numpy as np
 from typing import Callable, List
+from scipy.optimize import minimize as scipy_minimize
 
 class AugmentedLagrangianMethod:
     """
@@ -35,13 +36,17 @@ class AugmentedLagrangianMethod:
                 grad_constraints_vals = np.array([gc(x_inner) for gc in grad_constraints])
                 return grad_objective(x_inner) + grad_constraints_vals.T @ (lambdas + rho * constraint_vals)
 
-            # Inner loop: Unconstrained minimization (using simple Gradient Descent)
+            # Inner loop: Unconstrained minimization using a robust solver
             x_prev_outer = x.copy()
-            for inner_iter in range(self.max_inner_iter):
-                grad = grad_augmented_lagrangian(x)
-                if np.linalg.norm(grad) < self.tol:
-                    break
-                x = x - 0.01 * grad # Simple fixed step size
+            res = scipy_minimize(
+                fun=augmented_lagrangian,
+                x0=x,
+                jac=grad_augmented_lagrangian,
+                method='BFGS',
+                tol=self.tol,
+                options={'maxiter': self.max_inner_iter}
+            )
+            x = res.x
             
             self.history['x'].append(x.copy())
             self.history['f_x'].append(objective(x))
